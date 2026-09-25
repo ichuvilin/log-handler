@@ -139,6 +139,18 @@ func ProcessMultipleFiles(filePaths []string) ([]LogEntry, error) {
 	return entries, nil
 }
 
+func CorrelateRequests(entries []LogEntry) map[string][]LogEntry {
+	m := make(map[string][]LogEntry)
+
+	for _, entry := range entries {
+		if entry.RequestID != "" {
+			m[entry.RequestID] = append(m[entry.RequestID], entry)
+		}
+	}
+
+	return m
+}
+
 func main() {
 	line, _ := ParseLogLine("2023-12-25T14:30:15.123Z [INFO] user-service: User authenticated, request_id=req_abc123, user_id=12345")
 	fmt.Println(fmt.Sprintf("%+v", line))
