@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"regexp"
 	"time"
 )
@@ -96,6 +98,41 @@ func ReadLogFile(filePath string) ([]LogEntry, error) {
 			entries = append(entries, logLine)
 		} else {
 			fmt.Printf("error parse log: %s\n", err)
+		}
+	}
+
+	return entries, nil
+}
+
+func ScanLogDirectory(dirPath string) ([]string, error) {
+	paths := make([]string, 0)
+	if err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(path) == ".log" {
+			paths = append(paths, path)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return paths, nil
+}
+
+func ProcessMultipleFiles(filePaths []string) ([]LogEntry, error) {
+	entries := make([]LogEntry, 0)
+
+	for _, path := range filePaths {
+		if logs, err := ReadLogFile(path); err != nil {
+			fmt.Printf("error parse log by path %s: %v\n", path, err)
+		} else {
+			entries = append(entries, logs...)
 		}
 	}
 
