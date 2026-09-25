@@ -140,15 +140,18 @@ func ProcessMultipleFiles(filePaths []string) ([]LogEntry, error) {
 }
 
 func CorrelateRequests(entries []LogEntry) map[string][]LogEntry {
-	m := make(map[string][]LogEntry)
+	grouped := make(map[string][]LogEntry)
+	withoutReqID := make([]LogEntry, 0)
 
 	for _, entry := range entries {
 		if entry.RequestID != "" {
-			m[entry.RequestID] = append(m[entry.RequestID], entry)
+			grouped[entry.RequestID] = append(grouped[entry.RequestID], entry)
+		} else {
+			withoutReqID = append(withoutReqID, entry)
 		}
 	}
 
-	return m
+	return grouped
 }
 
 func main() {
