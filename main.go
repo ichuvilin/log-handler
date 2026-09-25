@@ -1,20 +1,84 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
+	"time"
 )
 
-// TIP <p>To run your code, right-click the code and select <b>Run</b>.</p> <p>Alternatively, click
-// the <icon src="AllIcons.Actions.Execute"/> icon in the gutter and select the <b>Run</b> menu item from here.</p>
-func main() {
-	//TIP <p>Press <shortcut actionId="ShowIntentionActions"/> when your caret is at the underlined text
-	// to see how GoLand suggests fixing the warning.</p><p>Alternatively, if available, click the lightbulb to view possible fixes.</p>
-	s := "gopher"
-	fmt.Println("Hello and welcome, %s!", s)
+type LogEntry struct {
+	Timestamp time.Time
+	Level     string
+	Service   string
+	Message   string
+	RequestID string
+	UserID    string
+}
 
-	for i := 1; i <= 5; i++ {
-		//TIP <p>To start your debugging session, right-click your code in the editor and select the Debug option.</p> <p>We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-		// for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.</p>
-		fmt.Println("i =", 100/i)
+func ParseLogLine(line string) (LogEntry, error) {
+	log := LogEntry{}
+
+	iso8601Regex := regexp.MustCompile(
+		`^(\S+)`,
+	)
+	t := iso8601Regex.FindString(line)
+	if t != "" {
+		parse, err := time.Parse(time.RFC3339, t)
+		if err != nil {
+			return LogEntry{}, errors.New("invalid log: timestamp not found")
+		}
+		log.Timestamp = parse
+	} else {
+		return LogEntry{}, errors.New("invalid log: timestamp not found")
 	}
+
+	re := regexp.MustCompile(`\[([A-Z]+)]`)
+	levels := re.FindStringSubmatch(line)
+	if len(levels) > 1 {
+		log.Level = levels[1]
+	} else {
+		return LogEntry{}, errors.New("invalid log: level not found")
+	}
+
+	re = regexp.MustCompile("([a-z-]+):")
+	srv := re.FindStringSubmatch(line)
+	if len(srv) > 1 {
+		log.Service = srv[1]
+	} else {
+		return LogEntry{}, errors.New("invalid log: service not found")
+	}
+
+	re = regexp.MustCompile("[a-z-]+: (.*)")
+	msg := re.FindStringSubmatch(line)
+	if len(msg) > 1 {
+		log.Message = msg[1]
+	} else {
+		return LogEntry{}, errors.New("invalid log: massage not found")
+	}
+
+	re = regexp.MustCompile(`request_id=([a-zA-Z0-9_]+)`)
+	matches := re.FindStringSubmatch(line)
+
+	if len(matches) > 1 {
+		log.RequestID = matches[1]
+	} else {
+		return LogEntry{}, errors.New("invalid log: reqID not found")
+	}
+
+	re = regexp.MustCompile(`user_id=([0-9]+)`)
+	matches = re.FindStringSubmatch(line)
+
+	if len(matches) > 1 {
+		log.UserID = matches[1]
+	} else {
+		return LogEntry{}, errors.New("invalid log: user id not found")
+	}
+
+	return log, nil
+}
+
+func main() {
+	line, _ := ParseLogLine("2023-12-25T14:30:15.123Z [INFO] user-service: User authenticated, request_id=req_abc123, user_id=12345")
+	fmt.Println(fmt.Sprintf("%+v", line))
 }
