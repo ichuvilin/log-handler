@@ -168,11 +168,9 @@ func DetectFailedRequests(correlatedRequests map[string][]LogEntry) []string {
 }
 
 func FindFirstFailure(requestEntries []LogEntry) (LogEntry, bool) {
-	sort.Slice(requestEntries, func(i, j int) bool {
-		return requestEntries[i].Timestamp.Before(requestEntries[j].Timestamp)
-	})
+	res := SortTimelineByTimestamp(requestEntries)
 
-	for _, entry := range requestEntries {
+	for _, entry := range res {
 		if entry.Level == "WARN" || entry.Level == "ERROR" {
 			return entry, true
 		}
@@ -181,6 +179,14 @@ func FindFirstFailure(requestEntries []LogEntry) (LogEntry, bool) {
 	return LogEntry{}, false
 }
 
+func SortTimelineByTimestamp(entries []LogEntry) []LogEntry {
+	res := make([]LogEntry, len(entries))
+	copy(res, entries)
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Timestamp.Before(res[j].Timestamp)
+	})
+	return res
+}
 func main() {
 	line, _ := ParseLogLine("2023-12-25T14:30:15.123Z [INFO] user-service: User authenticated, request_id=req_abc123, user_id=12345")
 	fmt.Println(fmt.Sprintf("%+v", line))
