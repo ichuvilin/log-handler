@@ -6,6 +6,7 @@ import (
 	"log-handler/internal/parser"
 	"os"
 	"sort"
+	"sync"
 )
 
 func ReadLogFile(filePath string) ([]parser.LogEntry, error) {
@@ -28,6 +29,46 @@ func ReadLogFile(filePath string) ([]parser.LogEntry, error) {
 	}
 
 	return entries, nil
+}
+
+func ProcessFilesConcurrently(filePaths []string, numWorkers int) ([]parser.LogEntry, error) {
+	jobs := make(chan string, numWorkers)
+	results := make(chan []parser.LogEntry, numWorkers)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fileWorker(jobs, results)
+		}()
+	}
+
+	for _, path := range filePaths {
+		jobs <- path
+	}
+
+	close(jobs)
+	wg.Wait()
+	close(results)
+
+	res := make([]parser.LogEntry, 0)
+	for r := range results {
+		res = append(res, r...)
+	}
+
+	return res, nil
+}
+
+func fileWorker(jobs <-chan string, results chan<- []parser.LogEntry) {
+	for file := range jobs {
+		entries, err := ReadLogFile(file)
+		if err != nil {
+			fmt.Printf("can't read log file: %+v", err)
+		}
+		results <- entries
+	}
 }
 
 func CorrelateRequests(entries []parser.LogEntry) map[string][]parser.LogEntry {
