@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -19,6 +20,20 @@ type LogEntry struct {
 	Message   string
 	RequestID string
 	UserID    string
+}
+
+type AnalysisResult struct {
+	TotalEntriesProcessed int                   `json:"total_entries_processed"`
+	FailedRequestsFound   int                   `json:"failed_requests_found"`
+	ProcessingTimeSeconds float64               `json:"processing_time_seconds"`
+	FailedRequests        []FailedRequestReport `json:"failed_requests"`
+}
+
+type FailedRequestReport struct {
+	RequestID      string   `json:"request_id"`
+	FailingService string   `json:"failing_service"`
+	ErrorMessage   string   `json:"error_message"`
+	Timeline       []string `json:"timeline"`
 }
 
 func ParseLogLine(line string) (LogEntry, error) {
@@ -187,6 +202,21 @@ func SortTimelineByTimestamp(entries []LogEntry) []LogEntry {
 	})
 	return res
 }
+
+func WriteJSONReport(result AnalysisResult, filename string) error {
+	data, err := json.MarshalIndent(result, "", " ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filename, data, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func main() {
 	line, _ := ParseLogLine("2023-12-25T14:30:15.123Z [INFO] user-service: User authenticated, request_id=req_abc123, user_id=12345")
 	fmt.Println(fmt.Sprintf("%+v", line))
