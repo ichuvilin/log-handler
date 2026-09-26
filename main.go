@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -27,6 +28,11 @@ type AnalysisResult struct {
 	FailedRequestsFound   int                   `json:"failed_requests_found"`
 	ProcessingTimeSeconds float64               `json:"processing_time_seconds"`
 	FailedRequests        []FailedRequestReport `json:"failed_requests"`
+}
+
+type Config struct {
+	InputDir   string
+	OutputFile string
 }
 
 type FailedRequestReport struct {
@@ -215,6 +221,20 @@ func WriteJSONReport(result AnalysisResult, filename string) error {
 	}
 
 	return nil
+}
+
+func ParseCommandLineArgs() (Config, error) {
+	inputDir := flag.String("input-dir", ".", "Directory containing .log files")
+	outputFile := flag.String("output-file", "result.json", "JSON output file path")
+
+	flag.Parse()
+
+	_, err := os.Stat(*inputDir)
+	if err != nil {
+		return Config{}, err
+	}
+
+	return Config{InputDir: *inputDir, OutputFile: *outputFile}, err
 }
 
 func main() {
