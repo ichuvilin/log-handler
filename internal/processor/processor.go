@@ -2,6 +2,7 @@ package processor
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log-handler/internal/parser"
 	"os"
@@ -31,7 +32,7 @@ func ReadLogFile(filePath string) ([]parser.LogEntry, error) {
 	return entries, nil
 }
 
-func ProcessFilesConcurrently(filePaths []string, numWorkers int) ([]parser.LogEntry, error) {
+func ProcessFilesConcurrently(ctx context.Context, filePaths []string, numWorkers int) ([]parser.LogEntry, error) {
 	jobs := make(chan string, numWorkers)
 	results := make(chan []parser.LogEntry, numWorkers)
 
@@ -41,34 +42,54 @@ func ProcessFilesConcurrently(filePaths []string, numWorkers int) ([]parser.LogE
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			fileWorker(jobs, results)
+			fileWorker(ctx, jobs, results)
 		}()
 	}
 
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
 	for _, path := range filePaths {
-		jobs <- path
+		select {
+		case <-ctx.Done():
+			return buildResults(results), nil
+		case jobs <- path:
+		}
 	}
 
 	close(jobs)
-	wg.Wait()
-	close(results)
 
+	return buildResults(results), nil
+}
+
+func fileWorker(ctx context.Context, jobs <-chan string, results chan<- []parser.LogEntry) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case file, ok := <-jobs:
+			if !ok {
+				return
+			}
+			entries, err := ReadLogFile(file)
+			if err != nil {
+				fmt.Printf("can't read log file: %+v", err)
+			} else {
+				results <- entries
+			}
+		}
+	}
+}
+
+func buildResults(results chan []parser.LogEntry) []parser.LogEntry {
 	res := make([]parser.LogEntry, 0)
 	for r := range results {
 		res = append(res, r...)
 	}
 
-	return res, nil
-}
-
-func fileWorker(jobs <-chan string, results chan<- []parser.LogEntry) {
-	for file := range jobs {
-		entries, err := ReadLogFile(file)
-		if err != nil {
-			fmt.Printf("can't read log file: %+v", err)
-		}
-		results <- entries
-	}
+	return res
 }
 
 func CorrelateRequests(entries []parser.LogEntry) map[string][]parser.LogEntry {
